@@ -41,6 +41,7 @@ Options:
     -i | --ignore <mask>  Files to ignore
     -f | --fix            Fixes files
     -l | --eol            Convert newline characters
+    --spaces              Use spaces for indentation
     --short-arrays        Enforces PHP 5.4 short array syntax
     --strict-types        Checks whether PHP 7.0 directive strict_types is enabled
 
@@ -392,7 +393,7 @@ $checker->tasks[] = function ($s) {
 };
 
 // indentation and tabs checker
-$checker->tasks[] = function ($s) {
+$checker->tasks[] = function ($s) use ($options) {
 	if ($this->is('php,phpt,css,less,js,json,neon')) {
 		$orig = $s;
 		if ($this->is('php,phpt')) { // remove spaces from strings
@@ -405,17 +406,29 @@ $checker->tasks[] = function ($s) {
 			}
 			$s = $res;
 		}
-		$offset = 0;
-		if (preg_match('#^(\t*+)\ (?!\*)\s*#m', $s, $m, PREG_OFFSET_CAPTURE)) {
-			$this->error(
-				$m[1][0] ? 'Mixed tabs and spaces to indent' : 'Used space to indent instead of tab',
-				$this->offsetToLine($orig, $m[0][1])
-			);
-			$offset = $m[0][1] + strlen($m[0][0]) + 1;
+
+		if ($options['--spaces']) {
+			if (preg_match('#^\s*?\t\s*#m', $s, $m, PREG_OFFSET_CAPTURE)) {
+				$this->error(
+					'Mixed tabs and spaces to indent',
+					$this->offsetToLine($orig, $m[0][1])
+				);
+			}
+
+		} else {
+			$offset = 0;
+			if (preg_match('#^(\t*+)\ (?!\*)\s*#m', $s, $m, PREG_OFFSET_CAPTURE)) {
+				$this->error(
+					$m[1][0] ? 'Mixed tabs and spaces to indent' : 'Used space to indent instead of tab',
+					$this->offsetToLine($orig, $m[0][1])
+				);
+				$offset = $m[0][1] + strlen($m[0][0]) + 1;
+			}
+			if (preg_match('#(?<=[\S ])(?<!^//)\t#m', $s, $m, PREG_OFFSET_CAPTURE, $offset)) {
+				$this->error('Found unexpected tabulator', $this->offsetToLine($orig, $m[0][1]));
+			}
 		}
-		if (preg_match('#(?<=[\S ])(?<!^//)\t#m', $s, $m, PREG_OFFSET_CAPTURE, $offset)) {
-			$this->error('Found unexpected tabulator', $this->offsetToLine($orig, $m[0][1]));
-		}
+
 	} elseif ($this->is('yml') && ($pos = strpos($s, "\t")) !== FALSE) {
 		$this->error('Found unexpected tabulator', $this->offsetToLine($s, $pos));
 	}
